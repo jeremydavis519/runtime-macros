@@ -1,0 +1,19 @@
+[package]
+name = "custom_assert"
+version = "0.1.0"
+authors = ["Jeremy Davis <jeremydavis519@gmail.com>"]
+
+[lib]
+crate-type = ["proc-macro"]
+
+[dependencies]
+proc-macro2 = "0.3"
+quote = "0.5"
+
+[dependencies.syn]
+version = "0.13"
+default-features = false
+features = ["parsing", "printing", "full"]
+
+[dev-dependencies]
+runtime-macros = { path = "../.." }

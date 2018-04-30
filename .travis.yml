@@ -1,0 +1,38 @@
+language: rust
+rust:
+- stable
+- beta
+- nightly
+matrix:
+  allow_failures:
+  - rust: stable
+  - rust: beta
+  fast_finish: true
+cache: cargo
+sudo: required
+
+addons:
+  apt:
+    packages:
+    - libssl-dev
+
+before_script:
+- |
+  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
+    export RUSTYASM_IS_MAIN_VERSION=true
+  fi
+script:
+- |
+  cargo clean &&
+  cargo build &&
+  cargo test &&
+  cargo bench &&
+  if [[ "$RUSTYASM_IS_MAIN_VERSION" == true ]]; then
+    cargo doc
+  fi
+after_success:
+- |
+  if [[ "$RUSTYASM_IS_MAIN_VERSION" == true ]]; then
+    bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
+    cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
+  fi

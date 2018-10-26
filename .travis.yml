@@ -21,6 +21,7 @@ before_script:
   if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
     export RUSTYASM_IS_MAIN_VERSION=true
   fi
+  set RUSTFLAGS="--cfg procmacro2_semver_exempt"
 script:
 - |
   cargo clean &&

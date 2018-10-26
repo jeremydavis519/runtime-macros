@@ -1,19 +1,19 @@
-#![feature(proc_macro)]
-
 extern crate proc_macro;
 extern crate proc_macro2;
+#[macro_use]
 extern crate quote;
+#[macro_use]
 extern crate syn;
 
-use proc_macro2::Span;
-use quote::{Tokens, ToTokens};
-use syn::{Expr, Ident};
-use syn::buffer::Cursor;
-use syn::synom::{PResult, Synom};
+use quote::{ToTokens, TokenStreamExt};
+use syn::Expr;
+use syn::parse::{self, Parse, ParseStream};
 use syn::punctuated::Punctuated;
-use syn::token::{Bang, Brace, Comma, Paren, Semi};
 
-/// Used exactly like the built-in `assert!` macro.
+/// Used exactly like the built-in `assert!` macro. This function has to be a stub whether
+/// proc_macro2 is used or not because Rust complains if we try to use a `#[proc_macro]` function
+/// as a regular function outside of a procedural macro context (e.g. in a test). The real logic
+/// begins in `custom_assert_internal`.
 #[proc_macro]
 pub fn custom_assert(ts: proc_macro::TokenStream) -> proc_macro::TokenStream {
     custom_assert_internal(ts.into()).into()
@@ -21,53 +21,33 @@ pub fn custom_assert(ts: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 fn custom_assert_internal(ts: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     let ast: CustomAssert = syn::parse2(ts).unwrap();
-    let mut tokens: Tokens = Tokens::new();
-    ast.to_tokens(&mut tokens);
-    tokens.into()
+    let mut ts = proc_macro2::TokenStream::new();
+    ast.to_tokens(&mut ts);
+    ts
 }
 
 struct CustomAssert {
     expr: Expr,
-    message: Punctuated<Expr, Comma>
+    message: Punctuated<Expr, Token![,]>
 }
 
-impl Synom for CustomAssert {
-    fn parse(mut cursor: Cursor) -> PResult<Self> {
-        let expr = Expr::parse(cursor)?; // Required expression
-        cursor = expr.1;
-        if let Ok((_, mut cursor)) = Comma::parse(cursor) { // Optional message
-            let message = Punctuated::parse_separated_nonempty(cursor)?;
-            cursor = message.1;
-            Ok((CustomAssert { expr: expr.0, message: message.0 }, cursor))
+impl Parse for CustomAssert {
+    fn parse(input: ParseStream) -> parse::Result<Self> {
+        let expr = input.call(Expr::parse)?; // Required expression
+        if input.parse::<Token![,]>().is_ok() { // Optional message
+            let message = input.call(Punctuated::parse_separated_nonempty)?;
+            Ok(CustomAssert { expr, message })
         } else {
-            Ok((CustomAssert { expr: expr.0, message: Punctuated::new() }, cursor))
+            Ok(CustomAssert { expr, message: Punctuated::new() })
         }
     }
 }
 
 impl ToTokens for CustomAssert {
-    fn to_tokens(&self, tokens: &mut Tokens) {
-        // Equivalent to quote!(if !(#expr) { panic!(#message); }), but avoiding that macro
-        // means we can count the lines used.
-        let span = Span::call_site();
-
-        Ident::new("if", span).to_tokens(tokens);
-        Bang::new(span).to_tokens(tokens);
-
-        Paren(span).surround(tokens, |ref mut expr_tokens| {
-            self.expr.to_tokens(expr_tokens);
-        });
-
-        Brace(span).surround(tokens, |ref mut block_tokens| {
-            Ident::new("panic", span).to_tokens(block_tokens);
-            Bang::new(span).to_tokens(block_tokens);
-
-            Paren(span).surround(block_tokens, |ref mut message_tokens| {
-                self.message.to_tokens(message_tokens);
-            });
-
-            Semi::new(span).to_tokens(block_tokens);
-        });
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let expr = &self.expr;
+        let message = &self.message;
+        tokens.append_all(quote!(if !(#expr) { panic!(#message); }));
     }
 }
 

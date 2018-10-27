@@ -1,6 +1,6 @@
 [package]
 name = "runtime-macros"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["Jeremy Davis <jeremydavis519@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Simulate expansion of procedural macros at run time"
@@ -18,8 +18,8 @@ coveralls = { repository = "jeremydavis519/runtime-macros", branch = "master", s
 crate-type = ["lib"]
 
 [dependencies]
-proc-macro2 = "0.3"
-syn = { version = "0.13", default-features = false, features = ["parsing", "full", "visit", "extra-traits"] }
+proc-macro2 = "0.4"
+syn = { version = "0.15", default-features = false, features = ["parsing", "full", "visit", "extra-traits"] }
 
 [dev-dependencies]
-cargo-tarpaulin = { git = "https://github.com/xd009642/tarpaulin", branch = "develop" }
+cargo-tarpaulin = "0.6"

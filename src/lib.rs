@@ -35,6 +35,7 @@ extern crate syn;
 
 use std::fs;
 use std::io::Read;
+use std::panic::{self, AssertUnwindSafe};
 
 /// Parses the given Rust source code file, searching for macro expansions that use `macro_path`.
 /// Each time it finds one, it calls `proc_macro_fn`, passing it the inner `TokenStream` just as
@@ -50,6 +51,13 @@ use std::io::Read;
 /// Also, this function uses `proc_macro2::TokenStream`, not the standard but partly unstable
 /// `proc_macro::TokenStream`. You can convert between them using their `into` methods, as shown
 /// below.
+///
+/// # Returns
+///
+/// `Ok` on success, or an instance of [`Error`] indicating any error that occurred when trying to
+/// read or parse the file.
+///
+/// [`Error`]: enum.Error.html
 /// 
 /// # Example
 /// 
@@ -73,26 +81,76 @@ use std::io::Read;
 ///     emulate_macro_expansion(file, "remove", |ts| remove(ts.into()).into());
 /// }
 /// ```
-pub fn emulate_macro_expansion<F>(mut file: fs::File, macro_path: &str, proc_macro_fn: F)
+pub fn emulate_macro_expansion_fallible<F>(mut file: fs::File, macro_path: &str, proc_macro_fn: F)
+        -> Result<(), Error>
         where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    struct MacroVisitor<'a, F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
-        macro_path: &'a str,
-        proc_macro_fn: F
+    struct MacroVisitor<F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
+        macro_path: syn::Path,
+        proc_macro_fn: AssertUnwindSafe<F>
     }
-    impl<'a, 'ast, F> syn::visit::Visit<'ast> for MacroVisitor<'a, F>
+    impl<'ast, F> syn::visit::Visit<'ast> for MacroVisitor<F>
             where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         fn visit_macro(&mut self, macro_item: &'ast syn::Macro) {
-            if macro_item.path == syn::parse_str::<syn::Path>(self.macro_path).unwrap() {
-                (self.proc_macro_fn)(macro_item.tts.clone());
+            if macro_item.path == self.macro_path {
+                (*self.proc_macro_fn)(macro_item.tts.clone());
             }
         }
     }
     
+    let proc_macro_fn = AssertUnwindSafe(proc_macro_fn);
+
     let mut content = String::new();
-    file.read_to_string(&mut content).unwrap();
+    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
     
-    let ast = syn::parse_file(content.as_str()).unwrap();
-    syn::visit::visit_file(&mut MacroVisitor::<F> { macro_path, proc_macro_fn }, &ast);
+    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let macro_path: syn::Path = syn::parse_str(macro_path).map_err(|e| Error::ParseError(e))?;
+
+    panic::catch_unwind(|| {
+        syn::visit::visit_file(&mut MacroVisitor::<F> {
+            macro_path,
+            proc_macro_fn
+        }, &*ast);
+    }).map_err(|_| Error::ParseError(syn::parse::Error::new(proc_macro2::Span::call_site(), "macro expansion panicked")))?;
+
+    Ok(())
+}
+
+/// This type is like [`emulate_macro_expansion_fallible`] but automatically unwraps any errors it
+/// encounters. As such, it's deprecated due to being less flexible.
+///
+/// [`emulate_macro_expansion_fallible`]: fn.emulate_macro_expansion_fallible.html
+#[deprecated]
+pub fn emulate_macro_expansion<F>(file: fs::File, macro_path: &str, proc_macro_fn: F)
+        where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    emulate_macro_expansion_fallible(file, macro_path, proc_macro_fn).unwrap()
+}
+
+/// The error type for [`emulate_macro_expansion_fallible`]. If anything goes wrong during the file
+/// loading or macro expansion, this type describes it.
+///
+/// [`emulate_macro_expansion_fallible`]: fn.emulate_macro_expansion_fallible.html
+#[derive(Debug)]
+pub enum Error {
+    IoError(std::io::Error),
+    ParseError(syn::parse::Error)
+}
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Error::IoError(e) => e.fmt(f),
+            Error::ParseError(e) => e.fmt(f)
+        }
+    }
+}
+
+impl std::error::Error for Error {
+    fn source(&self) -> Option<&(std::error::Error+'static)> {
+        match self {
+            Error::IoError(e) => e.source(),
+            Error::ParseError(e) => e.source()
+        }
+    }
 }
 
 #[cfg(test)]

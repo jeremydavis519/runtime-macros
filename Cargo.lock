@@ -924,7 +924,7 @@ dependencies = [
 
 [[package]]
 name = "runtime-macros"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "cargo-tarpaulin 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "proc-macro2 0.4.20 (registry+https://github.com/rust-lang/crates.io-index)",

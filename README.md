@@ -6,8 +6,8 @@ This crate offers a way to emulate the process of procedural macro expansion at 
 It is intended for use with code coverage tools like [`tarpaulin`], which can't measure
 the code coverage of anything that happens at compile time.
 
-Currently, `runtime-macros` only works with `functionlike!` procedural macros. Custom
-derive may be supported in the future if there's demand.
+Currently it supports functionlike attributes and custom derives. It does not support custom
+attributes as macros, though custom helper attributes on custom derives work.
 
 [`tarpaulin`]: https://crates.io/crates/cargo-tarpaulin
 
@@ -17,6 +17,7 @@ be in your `/tests` directory. Once you've completed this step, any code coverag
 works with your crate's test cases will be able to report on how thoroughly you've tested the
 macro.
 
-See the `/examples` directory in the [repository] for working examples.
+See the `/examples` directory in the [repository] for working examples. Note that the
+`custom_assert` example requires nightly at present.
 
 [repository]: https://github.com/jeremydavis519/runtime-macros

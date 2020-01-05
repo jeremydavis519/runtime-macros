@@ -1,12 +1,7 @@
 extern crate proc_macro;
-extern crate proc_macro2;
-#[macro_use]
-extern crate quote;
-#[macro_use]
-extern crate syn;
 
-use quote::{ToTokens, TokenStreamExt};
-use syn::Expr;
+use quote::{quote, ToTokens, TokenStreamExt};
+use syn::{Expr, Token};
 use syn::parse::{self, Parse, ParseStream};
 use syn::punctuated::Punctuated;
 
@@ -53,8 +48,7 @@ impl ToTokens for CustomAssert {
 
 #[cfg(test)]
 mod tests {
-    extern crate runtime_macros;
-    use self::runtime_macros::emulate_macro_expansion_fallible;
+    use runtime_macros::emulate_macro_expansion_fallible;
     use super::custom_assert_internal;
     use std::{env, fs};
 

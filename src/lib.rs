@@ -30,14 +30,11 @@
 //! 
 //! [repository]: https://github.com/jeremydavis519/runtime-macros
 
-extern crate proc_macro2;
-extern crate syn;
-
 use std::fs;
 use std::io::Read;
 use std::panic::{self, AssertUnwindSafe};
 
-/// Parses the given Rust source code file, searching for macro expansions that use `macro_path`.
+/// Parses the given Rust source file, finding functionlike macro expansions using `macro_path`.
 /// Each time it finds one, it calls `proc_macro_fn`, passing it the inner `TokenStream` just as
 /// if the macro were being expanded. The only effect is to verify that the macro doesn't panic,
 /// as the expansion is not actually applied to the AST or the source code.
@@ -92,7 +89,7 @@ pub fn emulate_macro_expansion_fallible<F>(mut file: fs::File, macro_path: &str,
             where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         fn visit_macro(&mut self, macro_item: &'ast syn::Macro) {
             if macro_item.path == self.macro_path {
-                (*self.proc_macro_fn)(macro_item.tts.clone());
+                (*self.proc_macro_fn)(macro_item.tokens.clone());
             }
         }
     }
@@ -109,6 +106,128 @@ pub fn emulate_macro_expansion_fallible<F>(mut file: fs::File, macro_path: &str,
         syn::visit::visit_file(&mut MacroVisitor::<F> {
             macro_path,
             proc_macro_fn
+        }, &*ast);
+    }).map_err(|_| Error::ParseError(syn::parse::Error::new(proc_macro2::Span::call_site(), "macro expansion panicked")))?;
+
+    Ok(())
+}
+
+fn uses_derive(attrs: &[syn::Attribute], derive_name: &syn::Path) -> Result<bool, Error> {
+    for attr in attrs {
+        if attr.path.is_ident("derive") {
+            let meta = attr.parse_meta().map_err(|e| Error::ParseError(e))?;
+            if let syn::Meta::List(ml) = meta {
+                let uses_derive = ml.nested.iter().any(|nested_meta| {
+                    *nested_meta == syn::NestedMeta::Meta(syn::Meta::Path(derive_name.clone()))
+                });
+                if uses_derive {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
+}
+
+
+/// Parses the given Rust source file, finding custom drives macro expansions using `macro_path`.
+/// Each time it finds one, it calls `derive_fn`, passing it a `syn::DeriveInput`. 
+/// 
+/// Note that this parser only handles Rust's syntax, so it cannot resolve paths to see if they
+/// are equivalent to the given one. The paths used to reference the macro must be exactly equal
+/// to the one given in order to be expanded by this function. For example, if `macro_path` is
+/// `"foo"` and the file provided calls the macro using `bar::foo!`, this function will not know
+/// to expand it, and the macro's code coverage will be underestimated.
+/// 
+/// This function follows the standard syn pattern of implementing most of the logic using the
+/// `proc_macro2` types, leaving only those methods that can only exist for `proc_macro=true`
+/// crates, such as types from `proc_macro` or `syn::parse_macro_input` in the outer function.
+/// This allows use of the inner function in tests which is needed to expand it here.
+///
+/// # Returns
+///
+/// `Ok` on success, or an instance of [`Error`] indicating any error that occurred when trying to
+/// read or parse the file.
+///
+/// [`Error`]: enum.Error.html
+/// 
+/// # Example
+/// 
+/// ```ignore
+/// # // This example doesn't compile because procedural macros can only be made in crates with
+/// # // type "proc-macro".
+/// # #![cfg(feature = "proc-macro")]
+/// # extern crate proc_macro;
+/// 
+/// use quote::quote;
+/// use syn::parse_macro_input;
+/// 
+/// #[proc_macro_derive(Hello)]
+/// fn hello(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+///     hello_internal(parse_macro_input!(input as DeriveInput)).into()
+/// }
+/// 
+/// fn hello_internal(input: syn::DeriveInput) -> proc_macro2::TokenStream {
+///     let ident = input.ident;
+///     quote! {
+///         impl #ident {
+///             fn hello_world() -> String {
+///                 String::from("Hello World")
+///             }
+///         }
+///     }
+/// }
+/// 
+/// #[test]
+/// fn macro_code_coverage() {
+///     let file = std::fs::File::open("tests/tests.rs");
+///     emulate_derive_expansion_fallible(file, "Hello", hello_internal);
+/// }
+/// ```
+pub fn emulate_derive_expansion_fallible<F>(mut file: fs::File, macro_path: &str, derive_fn: F)
+        -> Result<(), Error>
+        where F: Fn(syn::DeriveInput) -> proc_macro2::TokenStream {
+    struct MacroVisitor<F: Fn(syn::DeriveInput) -> proc_macro2::TokenStream> {
+        macro_path: syn::Path,
+        derive_fn: AssertUnwindSafe<F>
+    }
+    impl<'ast, F> syn::visit::Visit<'ast> for MacroVisitor<F>
+            where F: Fn(syn::DeriveInput) -> proc_macro2::TokenStream {
+        fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
+            match uses_derive(&node.attrs, &self.macro_path) {
+                Ok(uses) => {
+                    if uses {
+                        (*self.derive_fn)(node.clone().into());
+                    }
+                },
+                Err(e) => panic!("Failed expanding derive macro for {:?}: {}", self.macro_path, e),
+            }
+        }
+        
+        fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
+            match uses_derive(&node.attrs, &self.macro_path) {
+                Ok(uses) => {
+                    if uses {
+                        (*self.derive_fn)(node.clone().into());
+                    }
+                },
+                Err(e) => panic!("Failed expanding derive macro for {:?}: {}", self.macro_path, e),
+            }
+        }
+    }
+    
+    let derive_fn = AssertUnwindSafe(derive_fn);
+
+    let mut content = String::new();
+    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
+    
+    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let macro_path: syn::Path = syn::parse_str(macro_path).map_err(|e| Error::ParseError(e))?;
+
+    panic::catch_unwind(|| {
+        syn::visit::visit_file(&mut MacroVisitor::<F> {
+            macro_path,
+            derive_fn
         }, &*ast);
     }).map_err(|_| Error::ParseError(syn::parse::Error::new(proc_macro2::Span::call_site(), "macro expansion panicked")))?;
 
@@ -145,7 +264,7 @@ impl std::fmt::Display for Error {
 }
 
 impl std::error::Error for Error {
-    fn source(&self) -> Option<&(std::error::Error+'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error+'static)> {
         match self {
             Error::IoError(e) => e.source(),
             Error::ParseError(e) => e.source()
@@ -166,7 +285,7 @@ mod tests {
         let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
         config.manifest = test_dir.join("Cargo.toml");
         config.test_timeout = time::Duration::from_secs(60);
-        let (_trace_map, passed) = launch_tarpaulin(&config).unwrap();
-        assert!(passed);
+        let (_trace_map, return_code) = launch_tarpaulin(&config).unwrap();
+        assert_eq!(return_code, 0);
     }
 }

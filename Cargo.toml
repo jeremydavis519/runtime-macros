@@ -9,6 +9,7 @@ repository = "https://github.com/jeremydavis519/runtime-macros"
 categories = ["development-tools"]
 readme = "README.md"
 include = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
+edition = "2018"
 
 [badges]
 travis-ci = { repository = "jeremydavis519/runtime-macros", branch = "master" }
@@ -18,8 +19,9 @@ coveralls = { repository = "jeremydavis519/runtime-macros", branch = "master", s
 crate-type = ["lib"]
 
 [dependencies]
-proc-macro2 = "0.4"
-syn = { version = "0.15", default-features = false, features = ["parsing", "full", "visit", "extra-traits"] }
+proc-macro2 = "1.0"
+syn = { version = "1.0.11", default-features = false, features = ["derive", "parsing", "full", "visit", "extra-traits"] }
 
 [dev-dependencies]
-cargo-tarpaulin = "0.6"
+cargo-tarpaulin = "0.10.2"
+

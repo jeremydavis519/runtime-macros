@@ -166,7 +166,7 @@ mod tests {
         let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
         config.manifest = test_dir.join("Cargo.toml");
         config.test_timeout = time::Duration::from_secs(60);
-        let (_trace_map, passed) = launch_tarpaulin(&config).unwrap();
-        assert!(passed);
+        let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
+        assert_eq!(return_code, 0);
     }
 }

@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jeremy Davis <jeremydavis519@gmail.com>"]
 
 [lib]
-crate-type = ["proc-macro"]
+proc-macro = true
 
 [dependencies]
 proc-macro2 = "0.4"

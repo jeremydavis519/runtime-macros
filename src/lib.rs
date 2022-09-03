@@ -81,7 +81,7 @@ use std::panic::{self, AssertUnwindSafe};
 ///     emulate_macro_expansion(file, "remove", |ts| remove(ts.into()).into());
 /// }
 /// ```
-pub fn emulate_macro_expansion_fallible<F>(mut file: fs::File, macro_path: &str, proc_macro_fn: F)
+pub fn emulate_macro_expansion<F>(mut file: fs::File, macro_path: &str, proc_macro_fn: F)
         -> Result<(), Error>
         where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     struct MacroVisitor<F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
@@ -115,20 +115,10 @@ pub fn emulate_macro_expansion_fallible<F>(mut file: fs::File, macro_path: &str,
     Ok(())
 }
 
-/// This type is like [`emulate_macro_expansion_fallible`] but automatically unwraps any errors it
-/// encounters. As such, it's deprecated due to being less flexible.
+/// The error type for [`emulate_macro_expansion`]. If anything goes wrong during the file loading
+/// or macro expansion, this type describes it.
 ///
-/// [`emulate_macro_expansion_fallible`]: fn.emulate_macro_expansion_fallible.html
-#[deprecated]
-pub fn emulate_macro_expansion<F>(file: fs::File, macro_path: &str, proc_macro_fn: F)
-        where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    emulate_macro_expansion_fallible(file, macro_path, proc_macro_fn).unwrap()
-}
-
-/// The error type for [`emulate_macro_expansion_fallible`]. If anything goes wrong during the file
-/// loading or macro expansion, this type describes it.
-///
-/// [`emulate_macro_expansion_fallible`]: fn.emulate_macro_expansion_fallible.html
+/// [`emulate_macro_expansion`]: fn.emulate_macro_expansion.html
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),

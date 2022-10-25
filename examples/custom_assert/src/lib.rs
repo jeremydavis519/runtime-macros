@@ -20,7 +20,10 @@ pub fn custom_assert(ts: proc_macro::TokenStream) -> proc_macro::TokenStream {
 }
 
 fn custom_assert_internal(ts: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    // Parse the arguments to the macro.
     let ast: CustomAssert = syn::parse2(ts).unwrap();
+
+    // Return the macro's expanded form (the main logic is in `CustomAssert::to_tokens`).
     let mut ts = proc_macro2::TokenStream::new();
     ast.to_tokens(&mut ts);
     ts

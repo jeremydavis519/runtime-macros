@@ -10,10 +10,6 @@ categories = ["development-tools"]
 readme = "README.md"
 include = ["/Cargo.toml", "/src/**/*.rs", "/README.md", "/LICENSE-APACHE", "/LICENSE-MIT"]
 
-[badges]
-travis-ci = { repository = "jeremydavis519/runtime-macros", branch = "master" }
-coveralls = { repository = "jeremydavis519/runtime-macros", branch = "master", service = "github" }
-
 [lib]
 crate-type = ["lib"]
 

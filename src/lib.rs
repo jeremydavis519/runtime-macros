@@ -85,11 +85,14 @@ use {
 ///
 /// extern crate syn;
 ///
+/// # /*
 /// #[test]
+/// # */
 /// fn macro_code_coverage() {
 ///     let file = std::fs::File::open("tests/tests.rs");
-///     emulate_functionlike_macro_expansion(file, &[("remove", remove_internal)]);
+///     emulate_functionlike_macro_expansion(file, &[("remove", remove_internal)]).unwrap();
 /// }
+/// # macro_code_coverage();
 /// ```
 pub fn emulate_functionlike_macro_expansion<'a, F>(
         mut file: fs::File,
@@ -107,6 +110,81 @@ pub fn emulate_functionlike_macro_expansion<'a, F>(
                     proc_macro_fn(macro_item.tokens.clone().into());
                 }
             }
+        }
+    }
+
+    let mut content = String::new();
+    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
+
+    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let macro_paths_and_proc_macro_fns = AssertUnwindSafe(
+        macro_paths_and_proc_macro_fns.iter()
+            .map(|(s, f)| Ok((syn::parse_str(s)?, f)))
+            .collect::<Result<Vec<(syn::Path, &F)>, _>>()
+            .map_err(|e| Error::ParseError(e))?
+    );
+
+    panic::catch_unwind(|| {
+        syn::visit::visit_file(&mut MacroVisitor::<F> {
+            macro_paths_and_proc_macro_fns
+        }, &*ast);
+    }).map_err(|_| Error::ParseError(syn::parse::Error::new(
+        proc_macro2::Span::call_site().into(), "macro expansion panicked"
+    )))?;
+
+    Ok(())
+}
+
+/// This function behaves just like [`emulate_functionlike_macro_expansion`], but with attribute-like
+/// macros like `#[foo]` instead of function-like macros like `foo!()`. See that function's
+/// documentation for details and an example of use.
+///
+/// [`emulate_functionlike_macro_expansion`]: fn.emulate_functionlike_macro_expansion.html
+pub fn emulate_attributelike_macro_expansion<'a, F>(
+        mut file: fs::File,
+        macro_paths_and_proc_macro_fns: &[(&'a str, F)]
+) -> Result<(), Error>
+        where F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    struct MacroVisitor<'a, F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
+        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>
+    }
+    impl<'a, 'ast, F> syn::visit::Visit<'ast> for MacroVisitor<'a, F>
+            where F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        fn visit_item(&mut self, item: &'ast syn::Item) {
+            macro_rules! visit_any {
+                ( $($ident:ident),* ) => {
+                    match *item {
+                        $(syn::Item::$ident(ref item) => {
+                            for attr in item.attrs.iter() {
+                                for (path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
+                                    if attr.path == *path {
+                                        proc_macro_fn(attr.tokens.clone().into(), item.to_token_stream());
+                                    }
+                                }
+                            }
+                        },)*
+                        _ => {}
+                    }
+                }
+            }
+            visit_any!(
+                Const,
+                Enum,
+                ExternCrate,
+                Fn,
+                ForeignMod,
+                Impl,
+                Macro,
+                Macro2,
+                Mod,
+                Static,
+                Struct,
+                Trait,
+                TraitAlias,
+                Type,
+                Union,
+                Use
+            );
         }
     }
 
@@ -169,6 +247,16 @@ mod tests {
     fn functionlike_proc_macro_coverage() {
         let mut config = Config::default();
         let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
+        config.manifest = test_dir.join("Cargo.toml");
+        config.test_timeout = time::Duration::from_secs(60);
+        let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
+        assert_eq!(return_code, 0);
+    }
+
+    #[test]
+    fn attributelike_proc_macro_coverage() {
+        let mut config = Config::default();
+        let test_dir = env::current_dir().unwrap().join("examples").join("reference_counting");
         config.manifest = test_dir.join("Cargo.toml");
         config.test_timeout = time::Duration::from_secs(60);
         let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();

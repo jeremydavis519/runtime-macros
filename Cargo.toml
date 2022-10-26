@@ -18,8 +18,9 @@ coveralls = { repository = "jeremydavis519/runtime-macros", branch = "master", s
 crate-type = ["lib"]
 
 [dependencies]
-proc-macro2 = "0.4"
-syn = { version = "0.15", default-features = false, features = ["parsing", "full", "visit", "extra-traits"] }
+proc-macro2 = "1.0"
+quote = "1.0"
+syn = { version = "1.0", default-features = false, features = ["parsing", "visit", "extra-traits"] }
 
 [dev-dependencies]
 cargo-tarpaulin = "0.21"

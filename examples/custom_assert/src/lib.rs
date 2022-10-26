@@ -26,7 +26,10 @@ pub fn custom_assert(ts: TokenStream) -> TokenStream {
 
 fn custom_assert_internal(ts: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
     // Parse the arguments to the macro.
-    let ast: CustomAssert = syn::parse2(ts).unwrap();
+    let ast: CustomAssert = match syn::parse2(ts) {
+        Ok(ast) => ast,
+        Err(e) => return e.into_compile_error()
+    };
 
     // Return the macro's expanded form (the main logic is in `CustomAssert::to_tokens`).
     let mut ts = proc_macro2::TokenStream::new();
@@ -85,6 +88,23 @@ mod tests {
         path.push("compile-fail");
         path.push("syntax_error.rs");
         let file = fs::File::open(path).unwrap();
-        assert!(emulate_functionlike_macro_expansion(file, &[("custom_assert", custom_assert_internal)]).is_err());
+        emulate_functionlike_macro_expansion(file, &[("custom_assert", custom_assert_internal)]).unwrap();
     }
 }
+
+#[cfg(doctest)]
+mod doctests {
+    //! Rust doesn't provide a standard way to test for failure to compile, but Rustdoc does. So tests like
+    //! that can be put here.
+    //!
+    //! ```
+    //! // Confirm that the file exists.
+    //! include_bytes!("../tests/compile-fail/syntax_error.rs");
+    //! ```
+    //! ```compile_fail
+    //! // Including the file as code is enough to cause a compilation failure.
+    //! include!("../tests/compile-fail/syntax_error.rs");
+    //! fn main() {}
+    //! ```
+}
+

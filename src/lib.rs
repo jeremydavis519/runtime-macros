@@ -70,6 +70,8 @@ use {
 /// # Example
 ///
 /// ```
+/// # use runtime_macros::emulate_functionlike_macro_expansion;
+///
 /// # /*
 /// #[proc_macro]
 /// fn remove(ts: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -80,16 +82,17 @@ use {
 ///
 /// fn remove_internal(_: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
 ///     // This macro just eats its input and replaces it with nothing.
-///     proc_macro2::TokenStream::empty()
+///     proc_macro2::TokenStream::new()
 /// }
-///
-/// extern crate syn;
 ///
 /// # /*
 /// #[test]
 /// # */
 /// fn macro_code_coverage() {
-///     let file = std::fs::File::open("tests/tests.rs");
+/// # /*
+///     let file = std::fs::File::open("tests/tests.rs").unwrap();
+/// # */
+/// # let file = std::fs::File::open(concat!(env!("CARGO_MANIFEST_DIR"), "/src/lib.rs")).unwrap();
 ///     emulate_functionlike_macro_expansion(file, &[("remove", remove_internal)]).unwrap();
 /// }
 /// # macro_code_coverage();
@@ -244,22 +247,28 @@ mod tests {
     use std::{env, time};
 
     #[test]
-    fn functionlike_proc_macro_coverage() {
-        let mut config = Config::default();
-        let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
-        config.manifest = test_dir.join("Cargo.toml");
-        config.test_timeout = time::Duration::from_secs(60);
-        let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
-        assert_eq!(return_code, 0);
-    }
+    fn proc_macro_coverage() {
+        // All the tests are in this one function so they'll run sequentially. Something about how
+        // Tarpaulin works seems to dislike having two instances running in parallel.
 
-    #[test]
-    fn attributelike_proc_macro_coverage() {
-        let mut config = Config::default();
-        let test_dir = env::current_dir().unwrap().join("examples").join("reference_counting");
-        config.manifest = test_dir.join("Cargo.toml");
-        config.test_timeout = time::Duration::from_secs(60);
-        let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
-        assert_eq!(return_code, 0);
+        {
+            // Function-like
+            let mut config = Config::default();
+            let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
+            config.manifest = test_dir.join("Cargo.toml");
+            config.test_timeout = time::Duration::from_secs(60);
+            let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
+            assert_eq!(return_code, 0);
+        }
+
+        {
+            // Attribute-like
+            let mut config = Config::default();
+            let test_dir = env::current_dir().unwrap().join("examples").join("reference_counting");
+            config.manifest = test_dir.join("Cargo.toml");
+            config.test_timeout = time::Duration::from_secs(60);
+            let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
+            assert_eq!(return_code, 0);
+        }
     }
 }

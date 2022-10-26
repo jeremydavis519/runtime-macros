@@ -1,5 +1,3 @@
-#![feature(proc_macro_hygiene)]
-
 extern crate custom_assert;
 
 use custom_assert::custom_assert;

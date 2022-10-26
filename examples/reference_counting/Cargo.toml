@@ -1,0 +1,19 @@
+[package]
+name = "reference_counting"
+version = "0.1.0"
+authors = ["Jeremy Davis <jeremydavis519@gmail.com>"]
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = "1.0"
+quote = "1.0"
+
+[dependencies.syn]
+version = "1.0"
+default-features = false
+features = ["parsing", "printing", "full", "clone-impls"]
+
+[dev-dependencies]
+runtime-macros = { path = "../.." }

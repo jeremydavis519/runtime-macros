@@ -5,17 +5,22 @@ extern crate quote;
 #[macro_use]
 extern crate syn;
 
-use quote::{ToTokens, TokenStreamExt};
-use syn::Expr;
-use syn::parse::{self, Parse, ParseStream};
-use syn::punctuated::Punctuated;
+use {
+    proc_macro::TokenStream,
+    quote::{ToTokens, TokenStreamExt},
+    syn::{
+        Expr,
+        parse::{self, Parse, ParseStream},
+        punctuated::Punctuated
+    }
+};
 
 /// Used exactly like the built-in `assert!` macro. This function has to be a stub whether
 /// proc_macro2 is used or not because Rust complains if we try to use a `#[proc_macro]` function
 /// as a regular function outside of a procedural macro context (e.g. in a test). The real logic
 /// begins in `custom_assert_internal`.
 #[proc_macro]
-pub fn custom_assert(ts: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn custom_assert(ts: TokenStream) -> TokenStream {
     custom_assert_internal(ts.into()).into()
 }
 

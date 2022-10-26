@@ -7,11 +7,11 @@ authors = ["Jeremy Davis <jeremydavis519@gmail.com>"]
 proc-macro = true
 
 [dependencies]
-proc-macro2 = "0.4"
-quote = "0.6"
+proc-macro2 = "1.0"
+quote = "1.0"
 
 [dependencies.syn]
-version = "0.15"
+version = "1.0"
 default-features = false
 features = ["parsing", "printing", "full"]
 

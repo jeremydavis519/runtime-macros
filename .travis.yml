@@ -1,3 +1,4 @@
+dist: bionic
 language: rust
 rust:
 - stable
@@ -5,8 +6,7 @@ rust:
 - nightly
 matrix:
   allow_failures:
-  - rust: stable
-  - rust: beta
+  - rust: nightly
   fast_finish: true
 cache: cargo
 sudo: required
@@ -18,8 +18,9 @@ addons:
 
 before_script:
 - |
-  if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
-    export RUSTYASM_IS_MAIN_VERSION=true
+  if [[ "$TRAVIS_RUST_VERSION" == stable ]]; then
+    export RUNTIME_MACROS_IS_MAIN_VERSION=true
+    cargo install cargo-tarpaulin
   fi
   export RUSTFLAGS="--cfg procmacro2_semver_exempt"
 script:
@@ -28,12 +29,12 @@ script:
   cargo build &&
   cargo test &&
   cargo bench &&
-  if [[ "$RUSTYASM_IS_MAIN_VERSION" == true ]]; then
+  if [[ "$RUNTIME_MACROS_IS_MAIN_VERSION" == true ]]; then
     cargo doc
   fi
 after_success:
 - |
-  if [[ "$RUSTYASM_IS_MAIN_VERSION" == true ]]; then
+  if [[ "$RUNTIME_MACROS_IS_MAIN_VERSION" == true ]]; then
     bash <(curl https://raw.githubusercontent.com/xd009642/tarpaulin/master/travis-install.sh)
     cargo tarpaulin --ciserver travis-ci --coveralls $TRAVIS_JOB_ID
   fi

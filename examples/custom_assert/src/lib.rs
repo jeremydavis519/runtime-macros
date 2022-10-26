@@ -57,7 +57,7 @@ impl ToTokens for CustomAssert {
 #[cfg(test)]
 mod tests {
     extern crate runtime_macros;
-    use self::runtime_macros::emulate_macro_expansion_fallible;
+    use self::runtime_macros::emulate_functionlike_macro_expansion;
     use super::custom_assert_internal;
     use std::{env, fs};
 
@@ -69,7 +69,7 @@ mod tests {
         path.push("tests");
         path.push("tests.rs");
         let file = fs::File::open(path).unwrap();
-        emulate_macro_expansion_fallible(file, "custom_assert", custom_assert_internal).unwrap();
+        emulate_functionlike_macro_expansion(file, &[("custom_assert", custom_assert_internal)]).unwrap();
     }
 
     #[test]
@@ -80,6 +80,6 @@ mod tests {
         path.push("compile-fail");
         path.push("syntax_error.rs");
         let file = fs::File::open(path).unwrap();
-        assert!(emulate_macro_expansion_fallible(file, "custom_assert", custom_assert_internal).is_err());
+        assert!(emulate_functionlike_macro_expansion(file, &[("custom_assert", custom_assert_internal)]).is_err());
     }
 }

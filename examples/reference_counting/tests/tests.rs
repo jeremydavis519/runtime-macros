@@ -1,11 +1,3 @@
-/*!
-Rust doesn't provide a standard way to test for failure to compile, but Rustdoc does. So tests like
-that can be put here.
-```compile_fail
-include!("compile-fail/given_args.rs");
-```
-*/
-
 extern crate reference_counting;
 
 use {

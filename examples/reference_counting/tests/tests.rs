@@ -7,7 +7,6 @@ use {
 
 #[reference_counted]
 #[derive(Default)]
-#[repr(C)]
 struct SharedState {
     values: Vec<String>
 }

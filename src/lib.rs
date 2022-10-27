@@ -44,11 +44,13 @@ use {
     syn::{Meta, NestedMeta}
 };
 
-/// Parses the given Rust source code file, searching for functionlike macro calls that use each
-/// of the given macro paths. Each time it finds one, it calls the corresponding procedural macro
-/// function, passing it the inner `TokenStream` just as if the macro were being expanded. The only
-/// effect is to verify that the macro doesn't panic, as the expansion is not actually applied to
-/// the AST or the source code.
+/// Searches the given Rust source code file for function-like macro calls and calls the functions
+/// that define how to expand them.
+///
+/// Each time it finds one, this function calls the corresponding procedural macro function, passing
+/// it the inner `TokenStream` just as if the macro were being expanded. The only effect is to
+/// verify that the macro doesn't panic, as the expansion is not actually applied to the AST or the
+/// source code.
 ///
 /// Note that this parser only handles Rust's syntax, so it cannot resolve paths to see if they
 /// are equivalent to the given one. The paths used to reference the macro must be exactly equal
@@ -139,6 +141,9 @@ pub fn emulate_functionlike_macro_expansion<'a, F>(
     Ok(())
 }
 
+/// Searches the given Rust source code file for derive macro calls and calls the functions that
+/// define how to expand them.
+///
 /// This function behaves just like [`emulate_functionlike_macro_expansion`], but with derive macros
 /// like `#[derive(Foo)]` instead of function-like macros like `foo!()`. See that function's
 /// documentation for details and an example of use.
@@ -231,6 +236,9 @@ pub fn emulate_derive_macro_expansion<'a, F>(
     Ok(())
 }
 
+/// Searches the given Rust source code file for attribute-like macro calls and calls the functions
+/// that define how to expand them.
+///
 /// This function behaves just like [`emulate_functionlike_macro_expansion`], but with attribute-like
 /// macros like `#[foo]` instead of function-like macros like `foo!()`. See that function's
 /// documentation for details and an example of use.

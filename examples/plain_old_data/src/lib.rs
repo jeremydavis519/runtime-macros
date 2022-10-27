@@ -8,7 +8,6 @@ use {
     proc_macro::TokenStream,
     quote::ToTokens,
     syn::{
-        Attribute,
         ItemStruct,
         parse::{self, Parse, ParseStream}
     }
@@ -52,10 +51,6 @@ struct Pod {
 
 impl Parse for Pod {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        // Skip past any other attributes in the input.
-        input.call(Attribute::parse_outer).ok();
-
-        // Parse the item (must be a struct).
         Ok(Self { item: input.call(ItemStruct::parse)? })
     }
 }

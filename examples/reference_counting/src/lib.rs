@@ -54,48 +54,38 @@ fn reference_counted_internal(attr: proc_macro2::TokenStream, item: proc_macro2:
 }
 
 enum RefCounted {
-    Struct { attrs: proc_macro2::TokenStream, item: ItemStruct },
-    Enum { attrs: proc_macro2::TokenStream, item: ItemEnum }
+    Struct(ItemStruct),
+    Enum(ItemEnum)
 }
 
 impl Parse for RefCounted {
     fn parse(input: ParseStream) -> parse::Result<Self> {
-        // Skip past any other attributes in the input.
-        let mut attrs = proc_macro2::TokenStream::new();
-        if let Ok(mut parsed_attrs) = input.call(Attribute::parse_outer) {
-            for attr in parsed_attrs.drain(..) {
-                attr.to_tokens(&mut attrs);
-            }
-        }
-
         // Is this a struct?
         if let Ok(item) = input.call(ItemStruct::parse) {
-            return Ok(Self::Struct { attrs, item });
+            return Ok(Self::Struct(item));
         }
 
         // Is this an enum?
         let item = input.call(ItemEnum::parse)?;
-        Ok(Self::Enum { attrs, item })
+        Ok(Self::Enum(item))
     }
 }
 
 impl ToTokens for RefCounted {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         match *self {
-            Self::Struct { ref attrs, ref item } => {
+            Self::Struct(ref item) => {
                 // Struct: Add a single reference count field.
                 let mut item = item.clone();
                 apply_refcount(&mut item.fields);
-                tokens.extend(attrs.clone());
                 item.to_tokens(tokens);
             },
-            Self::Enum { ref attrs, ref item } => {
+            Self::Enum(ref item) => {
                 // Enum: Add a reference count field to each variant.
                 let mut item = item.clone();
                 for variant in item.variants.iter_mut() {
                     apply_refcount(&mut variant.fields);
                 }
-                tokens.extend(attrs.clone());
                 item.to_tokens(tokens);
             }
         }

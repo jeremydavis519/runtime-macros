@@ -9,9 +9,7 @@ use {
     proc_macro2::Span,
     quote::ToTokens,
     syn::{
-        *,
-        parse::{self, Parse, ParseStream},
-        punctuated::Punctuated
+        parse::{self, Parse, ParseStream}, punctuated::Punctuated, token::Pub,
     }
 };
 
@@ -54,19 +52,19 @@ fn reference_counted_internal(attr: proc_macro2::TokenStream, item: proc_macro2:
 }
 
 enum RefCounted {
-    Struct(ItemStruct),
-    Enum(ItemEnum)
+    Struct(syn::ItemStruct),
+    Enum(syn::ItemEnum)
 }
 
 impl Parse for RefCounted {
     fn parse(input: ParseStream) -> parse::Result<Self> {
         // Is this a struct?
-        if let Ok(item) = input.call(ItemStruct::parse) {
+        if let Ok(item) = input.call(syn::ItemStruct::parse) {
             return Ok(Self::Struct(item));
         }
 
         // Is this an enum?
-        let item = input.call(ItemEnum::parse)?;
+        let item = input.call(syn::ItemEnum::parse)?;
         Ok(Self::Enum(item))
     }
 }
@@ -93,40 +91,43 @@ impl ToTokens for RefCounted {
 }
 
 // Adds a reference count to the given set of fields.
-fn apply_refcount(fields: &mut Fields) {
+fn apply_refcount(fields: &mut syn::Fields) {
     match *fields {
-        Fields::Named(ref mut fields) => {
+        syn::Fields::Named(ref mut fields) => {
             // Named fields: Add a public named reference count.
-            fields.named.push(Field {
+            fields.named.push(syn::Field {
                 attrs: Vec::new(),
-                vis: VisPublic { pub_token: Default::default() }.into(),
-                ident: Some(Ident::new_raw("reference_count", Span::call_site())),
+                vis: syn::Visibility::Public(Default::default()),
+                mutability: syn::FieldMutability::None,
+                ident: Some(syn::Ident::new_raw("reference_count", Span::call_site())),
                 colon_token: Some(Default::default()),
-                ty: Type::Verbatim(quote!(usize))
+                ty: syn::Type::Verbatim(quote!(usize)),
             });
         },
-        Fields::Unnamed(ref mut fields) => {
+        syn::Fields::Unnamed(ref mut fields) => {
             // Unnamed fields: Add a public unnamed reference count to the end.
-            fields.unnamed.push(Field {
+            fields.unnamed.push(syn::Field {
                 attrs: Vec::new(),
-                vis: VisPublic { pub_token: Default::default() }.into(),
+                vis: syn::Visibility::Public(Pub::default()),
+                mutability: syn::FieldMutability::None,
                 ident: None,
                 colon_token: None,
-                ty: Type::Verbatim(quote!(usize))
+                ty: syn::Type::Verbatim(quote!(usize))
             });
         },
-        Fields::Unit => {
+        syn::Fields::Unit => {
             // No fields: Convert to named fields with a named reference count.
             let mut named_fields = Punctuated::new();
-            named_fields.push(Field {
+            named_fields.push(syn::Field {
                 attrs: Vec::new(),
-                vis: VisPublic { pub_token: Default::default() }.into(),
-                ident: Some(Ident::new_raw("reference_count", Span::call_site())),
+                vis: syn::Visibility::Public(Pub::default()),
+                mutability: syn::FieldMutability::None,
+                ident: Some(syn::Ident::new_raw("reference_count", Span::call_site())),
                 colon_token: Some(Default::default()),
-                ty: Type::Verbatim(quote!(usize))
+                ty: syn::Type::Verbatim(quote!(usize))
             });
-            *fields = Fields::Named(
-                FieldsNamed {
+            *fields = syn::Fields::Named(
+                syn::FieldsNamed {
                     brace_token: Default::default(),
                     named: named_fields
                 }

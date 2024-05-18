@@ -19,4 +19,4 @@ quote = "1.0"
 syn = { version = "2.0.38", default-features = false, features = ["parsing", "visit", "extra-traits"] }
 
 [dev-dependencies]
-cargo-tarpaulin = "0.27.3"
+cargo-tarpaulin = "0.30.0"

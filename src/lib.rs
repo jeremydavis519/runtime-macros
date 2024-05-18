@@ -35,13 +35,12 @@ extern crate quote;
 extern crate syn;
 
 use {
+    quote::ToTokens,
     std::{
         fs,
         io::Read,
-        panic::{self, AssertUnwindSafe}
+        panic::{self, AssertUnwindSafe},
     },
-    quote::ToTokens,
-    syn::{Meta, NestedMeta}
 };
 
 /// Searches the given Rust source code file for function-like macro calls and calls the functions
@@ -101,15 +100,19 @@ use {
 /// # macro_code_coverage();
 /// ```
 pub fn emulate_functionlike_macro_expansion<'a, F>(
-        mut file: fs::File,
-        macro_paths_and_proc_macro_fns: &[(&'a str, F)]
+    mut file: fs::File,
+    macro_paths_and_proc_macro_fns: &[(&'a str, F)],
 ) -> Result<(), Error>
-        where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+where
+    F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+{
     struct MacroVisitor<'a, F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
-        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>
+        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>,
     }
     impl<'a, 'ast, F> syn::visit::Visit<'ast> for MacroVisitor<'a, F>
-            where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    where
+        F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+    {
         fn visit_macro(&mut self, macro_item: &'ast syn::Macro) {
             for (path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
                 if macro_item.path == *path {
@@ -120,23 +123,33 @@ pub fn emulate_functionlike_macro_expansion<'a, F>(
     }
 
     let mut content = String::new();
-    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
+    file.read_to_string(&mut content)
+        .map_err(|e| Error::IoError(e))?;
 
-    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let ast =
+        AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
     let macro_paths_and_proc_macro_fns = AssertUnwindSafe(
-        macro_paths_and_proc_macro_fns.iter()
+        macro_paths_and_proc_macro_fns
+            .iter()
             .map(|(s, f)| Ok((syn::parse_str(s)?, f)))
             .collect::<Result<Vec<(syn::Path, &F)>, _>>()
-            .map_err(|e| Error::ParseError(e))?
+            .map_err(|e| Error::ParseError(e))?,
     );
 
     panic::catch_unwind(|| {
-        syn::visit::visit_file(&mut MacroVisitor::<F> {
-            macro_paths_and_proc_macro_fns
-        }, &*ast);
-    }).map_err(|_| Error::ParseError(syn::parse::Error::new(
-        proc_macro2::Span::call_site().into(), "macro expansion panicked"
-    )))?;
+        syn::visit::visit_file(
+            &mut MacroVisitor::<F> {
+                macro_paths_and_proc_macro_fns,
+            },
+            &*ast,
+        );
+    })
+    .map_err(|_| {
+        Error::ParseError(syn::parse::Error::new(
+            proc_macro2::Span::call_site().into(),
+            "macro expansion panicked",
+        ))
+    })?;
 
     Ok(())
 }
@@ -150,43 +163,50 @@ pub fn emulate_functionlike_macro_expansion<'a, F>(
 ///
 /// [`emulate_functionlike_macro_expansion`]: fn.emulate_functionlike_macro_expansion.html
 pub fn emulate_derive_macro_expansion<'a, F>(
-        mut file: fs::File,
-        macro_paths_and_proc_macro_fns: &[(&'a str, F)]
+    mut file: fs::File,
+    macro_paths_and_proc_macro_fns: &[(&'a str, F)],
 ) -> Result<(), Error>
-        where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+where
+    F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+{
     struct MacroVisitor<'a, F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
-        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>
+        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>,
     }
     impl<'a, 'ast, F> syn::visit::Visit<'ast> for MacroVisitor<'a, F>
-            where F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    where
+        F: Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+    {
         fn visit_item(&mut self, item: &'ast syn::Item) {
             macro_rules! visit {
                 ( $($ident:ident),* ) => {
                     match *item {
                         $(syn::Item::$ident(ref item) => {
                             for attr in item.attrs.iter() {
-                                let meta = match attr.parse_meta() {
-                                    Ok(Meta::List(list)) => list,
+                                let meta = match &attr.meta {
+                                    syn::Meta::List(list) => list,
                                     _ => continue
                                 };
-                                let path_ident = match meta.path.get_ident() {
-                                    Some(x) => x,
+
+                                match meta.path.get_ident() {
+                                    Some(x) => {
+                                        if x != "derive" {
+                                            continue;
+                                        }
+                                    },
                                     None => continue
-                                };
-                                if path_ident.to_string() != "derive" {
-                                    continue;
                                 }
-                                for nested_meta in meta.nested.iter() {
-                                    let meta_path = match *nested_meta {
-                                        NestedMeta::Meta(Meta::Path(ref path)) => path,
-                                        _ => continue
-                                    };
+
+                                match meta.parse_nested_meta(|meta| {
                                     for (path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
-                                        if meta_path == path {
+                                        if meta.path == *path {
                                             proc_macro_fn(/* attributes? */ item.to_token_stream());
                                         }
                                     }
-                                }
+                                    Ok(())
+                                }) {
+                                    Ok(_) => {},
+                                    Err(err) => panic!("Error parsing nested meta: {}", err),
+                                };
                             }
                         },)*
                         _ => {}
@@ -201,7 +221,6 @@ pub fn emulate_derive_macro_expansion<'a, F>(
                 ForeignMod,
                 Impl,
                 Macro,
-                Macro2,
                 Mod,
                 Static,
                 Struct,
@@ -215,23 +234,33 @@ pub fn emulate_derive_macro_expansion<'a, F>(
     }
 
     let mut content = String::new();
-    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
+    file.read_to_string(&mut content)
+        .map_err(|e| Error::IoError(e))?;
 
-    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let ast =
+        AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
     let macro_paths_and_proc_macro_fns = AssertUnwindSafe(
-        macro_paths_and_proc_macro_fns.iter()
+        macro_paths_and_proc_macro_fns
+            .iter()
             .map(|(s, f)| Ok((syn::parse_str(s)?, f)))
             .collect::<Result<Vec<(syn::Path, &F)>, _>>()
-            .map_err(|e| Error::ParseError(e))?
+            .map_err(|e| Error::ParseError(e))?,
     );
 
     panic::catch_unwind(|| {
-        syn::visit::visit_file(&mut MacroVisitor::<F> {
-            macro_paths_and_proc_macro_fns
-        }, &*ast);
-    }).map_err(|_| Error::ParseError(syn::parse::Error::new(
-        proc_macro2::Span::call_site().into(), "macro expansion panicked"
-    )))?;
+        syn::visit::visit_file(
+            &mut MacroVisitor::<F> {
+                macro_paths_and_proc_macro_fns,
+            },
+            &*ast,
+        );
+    })
+    .map_err(|_| {
+        Error::ParseError(syn::parse::Error::new(
+            proc_macro2::Span::call_site().into(),
+            "macro expansion panicked",
+        ))
+    })?;
 
     Ok(())
 }
@@ -245,24 +274,36 @@ pub fn emulate_derive_macro_expansion<'a, F>(
 ///
 /// [`emulate_functionlike_macro_expansion`]: fn.emulate_functionlike_macro_expansion.html
 pub fn emulate_attributelike_macro_expansion<'a, F>(
-        mut file: fs::File,
-        macro_paths_and_proc_macro_fns: &[(&'a str, F)]
+    mut file: fs::File,
+    macro_paths_and_proc_macro_fns: &[(&'a str, F)],
 ) -> Result<(), Error>
-        where F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-    struct MacroVisitor<'a, F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream> {
-        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>
+where
+    F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+{
+    struct MacroVisitor<
+        'a,
+        F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+    > {
+        macro_paths_and_proc_macro_fns: AssertUnwindSafe<Vec<(syn::Path, &'a F)>>,
     }
     impl<'a, 'ast, F> syn::visit::Visit<'ast> for MacroVisitor<'a, F>
-            where F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    where
+        F: Fn(proc_macro2::TokenStream, proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+    {
         fn visit_item(&mut self, item: &'ast syn::Item) {
             macro_rules! visit {
                 ( $($ident:ident),* ) => {
                     match *item {
                         $(syn::Item::$ident(ref item) => {
                             for attr in item.attrs.iter() {
+                                let meta = match &attr.meta {
+                                    syn::Meta::List(list) => list,
+                                    _ => continue
+                                };
+
                                 for (path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
-                                    if attr.path == *path {
-                                        proc_macro_fn(attr.tokens.clone().into(), item.to_token_stream());
+                                    if meta.path == *path {
+                                        proc_macro_fn(meta.tokens.clone().into(), item.to_token_stream());
                                     }
                                 }
                             }
@@ -279,7 +320,6 @@ pub fn emulate_attributelike_macro_expansion<'a, F>(
                 ForeignMod,
                 Impl,
                 Macro,
-                Macro2,
                 Mod,
                 Static,
                 Struct,
@@ -293,23 +333,33 @@ pub fn emulate_attributelike_macro_expansion<'a, F>(
     }
 
     let mut content = String::new();
-    file.read_to_string(&mut content).map_err(|e| Error::IoError(e))?;
+    file.read_to_string(&mut content)
+        .map_err(|e| Error::IoError(e))?;
 
-    let ast = AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
+    let ast =
+        AssertUnwindSafe(syn::parse_file(content.as_str()).map_err(|e| Error::ParseError(e))?);
     let macro_paths_and_proc_macro_fns = AssertUnwindSafe(
-        macro_paths_and_proc_macro_fns.iter()
+        macro_paths_and_proc_macro_fns
+            .iter()
             .map(|(s, f)| Ok((syn::parse_str(s)?, f)))
             .collect::<Result<Vec<(syn::Path, &F)>, _>>()
-            .map_err(|e| Error::ParseError(e))?
+            .map_err(|e| Error::ParseError(e))?,
     );
 
     panic::catch_unwind(|| {
-        syn::visit::visit_file(&mut MacroVisitor::<F> {
-            macro_paths_and_proc_macro_fns
-        }, &*ast);
-    }).map_err(|_| Error::ParseError(syn::parse::Error::new(
-        proc_macro2::Span::call_site().into(), "macro expansion panicked"
-    )))?;
+        syn::visit::visit_file(
+            &mut MacroVisitor::<F> {
+                macro_paths_and_proc_macro_fns,
+            },
+            &*ast,
+        );
+    })
+    .map_err(|_| {
+        Error::ParseError(syn::parse::Error::new(
+            proc_macro2::Span::call_site().into(),
+            "macro expansion panicked",
+        ))
+    })?;
 
     Ok(())
 }
@@ -319,23 +369,23 @@ pub fn emulate_attributelike_macro_expansion<'a, F>(
 #[derive(Debug)]
 pub enum Error {
     IoError(std::io::Error),
-    ParseError(syn::parse::Error)
+    ParseError(syn::parse::Error),
 }
 
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         match self {
             Error::IoError(e) => e.fmt(f),
-            Error::ParseError(e) => e.fmt(f)
+            Error::ParseError(e) => e.fmt(f),
         }
     }
 }
 
 impl std::error::Error for Error {
-    fn source(&self) -> Option<&(dyn std::error::Error+'static)> {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
         match self {
             Error::IoError(e) => e.source(),
-            Error::ParseError(e) => e.source()
+            Error::ParseError(e) => e.source(),
         }
     }
 }
@@ -343,8 +393,9 @@ impl std::error::Error for Error {
 #[cfg(test)]
 mod tests {
     extern crate cargo_tarpaulin;
-    use self::cargo_tarpaulin::launch_tarpaulin;
     use self::cargo_tarpaulin::config::Config;
+    use self::cargo_tarpaulin::launch_tarpaulin;
+    use std::panic;
     use std::{env, time};
 
     #[test]
@@ -355,8 +406,11 @@ mod tests {
         {
             // Function-like
             let mut config = Config::default();
-            let test_dir = env::current_dir().unwrap().join("examples").join("custom_assert");
-            config.manifest = test_dir.join("Cargo.toml");
+            let test_dir = env::current_dir()
+                .unwrap()
+                .join("examples")
+                .join("custom_assert");
+            config.set_manifest(test_dir.join("Cargo.toml"));
             config.test_timeout = time::Duration::from_secs(60);
             let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
             assert_eq!(return_code, 0);
@@ -365,10 +419,16 @@ mod tests {
         {
             // Attribute-like
             let mut config = Config::default();
-            let test_dir = env::current_dir().unwrap().join("examples").join("reference_counting");
-            config.manifest = test_dir.join("Cargo.toml");
+            let test_dir = env::current_dir()
+                .unwrap()
+                .join("examples")
+                .join("reference_counting");
+            config.set_manifest(test_dir.join("Cargo.toml"));
             config.test_timeout = time::Duration::from_secs(60);
-            let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
+            let (_trace_map, return_code) = match launch_tarpaulin(&config, &None) {
+                Ok(ret) => ret,
+                Err(err) => panic!("{}", err),
+            };
             assert_eq!(return_code, 0);
         }
     }

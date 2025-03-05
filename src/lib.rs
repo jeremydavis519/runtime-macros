@@ -296,14 +296,15 @@ where
                     match *item {
                         $(syn::Item::$ident(ref item) => {
                             for attr in item.attrs.iter() {
-                                let meta = match &attr.meta {
-                                    syn::Meta::List(list) => list,
+                                let (path, args) = match &attr.meta {
+                                    syn::Meta::Path(path) => (path, proc_macro2::TokenStream::new()),
+                                    syn::Meta::List(list) => (&list.path, list.tokens.clone().into()),
                                     _ => continue
                                 };
 
-                                for (path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
-                                    if meta.path == *path {
-                                        proc_macro_fn(meta.tokens.clone().into(), item.to_token_stream());
+                                for (proc_macro_path, proc_macro_fn) in self.macro_paths_and_proc_macro_fns.iter() {
+                                    if path == proc_macro_path {
+                                        proc_macro_fn(args.clone(), item.to_token_stream());
                                     }
                                 }
                             }

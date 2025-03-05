@@ -16,7 +16,7 @@ crate-type = ["lib"]
 [dependencies]
 proc-macro2 = "1.0"
 quote = "1.0"
-syn = { version = "2.0.38", default-features = false, features = ["parsing", "visit", "extra-traits"] }
+syn = { version = "2.0", default-features = false, features = ["parsing", "visit", "extra-traits"] }
 
 [dev-dependencies]
 cargo-tarpaulin = "0.31.0"

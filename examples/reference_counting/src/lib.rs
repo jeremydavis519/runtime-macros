@@ -98,7 +98,8 @@ fn apply_refcount(fields: &mut syn::Fields) {
             fields.named.push(syn::Field {
                 attrs: Vec::new(),
                 vis: syn::Visibility::Public(Default::default()),
-                mutability: syn::FieldMutability::None,
+                modifiers: Default::default(),
+                default: None,
                 ident: Some(syn::Ident::new_raw("reference_count", Span::call_site())),
                 colon_token: Some(Default::default()),
                 ty: syn::Type::Verbatim(quote!(usize)),
@@ -109,7 +110,8 @@ fn apply_refcount(fields: &mut syn::Fields) {
             fields.unnamed.push(syn::Field {
                 attrs: Vec::new(),
                 vis: syn::Visibility::Public(Pub::default()),
-                mutability: syn::FieldMutability::None,
+                modifiers: Default::default(),
+                default: None,
                 ident: None,
                 colon_token: None,
                 ty: syn::Type::Verbatim(quote!(usize))
@@ -121,7 +123,8 @@ fn apply_refcount(fields: &mut syn::Fields) {
             named_fields.push(syn::Field {
                 attrs: Vec::new(),
                 vis: syn::Visibility::Public(Pub::default()),
-                mutability: syn::FieldMutability::None,
+                modifiers: Default::default(),
+                default: None,
                 ident: Some(syn::Ident::new_raw("reference_count", Span::call_site())),
                 colon_token: Some(Default::default()),
                 ty: syn::Type::Verbatim(quote!(usize))

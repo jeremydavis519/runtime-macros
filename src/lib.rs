@@ -404,13 +404,14 @@ mod tests {
         // All the tests are in this one function so they'll run sequentially. Something about how
         // Tarpaulin works seems to dislike having two instances running in parallel.
 
+        // `launch_tarpaulin` changes the process's working directory, so resolve the base
+        // directory before the first launch.
+        let base_dir = env::current_dir().unwrap();
+
         {
             // Function-like
             let mut config = Config::default();
-            let test_dir = env::current_dir()
-                .unwrap()
-                .join("examples")
-                .join("custom_assert");
+            let test_dir = base_dir.join("examples").join("custom_assert");
             config.set_manifest(test_dir.join("Cargo.toml"));
             config.test_timeout = time::Duration::from_secs(60);
             let (_trace_map, return_code) = launch_tarpaulin(&config, &None).unwrap();
@@ -420,10 +421,7 @@ mod tests {
         {
             // Attribute-like
             let mut config = Config::default();
-            let test_dir = env::current_dir()
-                .unwrap()
-                .join("examples")
-                .join("reference_counting");
+            let test_dir = base_dir.join("examples").join("reference_counting");
             config.set_manifest(test_dir.join("Cargo.toml"));
             config.test_timeout = time::Duration::from_secs(60);
             let (_trace_map, return_code) = match launch_tarpaulin(&config, &None) {
